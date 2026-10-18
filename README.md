@@ -1,5 +1,26 @@
 # Rivian Card for use in Home Assistant
 
+> **pgenera fork:** `dist/rivian-card.js` is a standalone Lovelace card (`custom:rivian-card`) that
+> ports the R1S/R1T overhead state YAML to JavaScript. It needs no card_mod or bar-card, draws the
+> car from the integration's image entities (your real paint and wheels, dark or light to match the
+> theme), and only shows each side glow once however many closures are open.
+>
+> Install: copy `dist/rivian-card.js` and the overlay images (`src/images/<model>/<model>-{all,bottom,left,right,top}.png`
+> and `*.svg`) to `www/rivian-card/` and `www/rivian-card/images/<model>/`, add `/local/rivian-card/rivian-card.js`
+> as a module resource, then:
+>
+> ```yaml
+> type: custom:rivian-card
+> prefix: r1s                      # entity prefix: binary_sensor.<prefix>_door_front_left, ...
+> model: r1s                       # r1s | r1t
+> image: image.sasquatch_overhead  # integration image entity; _dark/_light is picked from the theme
+> # tracker: device_tracker.r1s_location
+> # assets: /local/rivian-card/images
+> ```
+>
+> Tapping the car or a status opens its more-info dialog. The battery status pulses while charging
+> and shows the time left.
+
 A custom `picture-elements` YAML configuration with custom image layers to match the build of the Rivian vehicles.
 
 ## Features
