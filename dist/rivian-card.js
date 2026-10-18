@@ -10,32 +10,42 @@
  *   model: r1s                        # r1s | r1t: picks the overlay set
  *   image: image.sasquatch_overhead   # _dark/_light suffix chosen from the theme; a full entity id or URL also works
  *   assets: /local/rivian-card/images # where the overlay images are served from
- *   lock_overlay: false               # hide the red unlocked glow/outline (the lock status still shows)
+ *   lock_overlay: false               # hide the red unlocked outline (the lock status still shows)
+ *   glows: true                       # also draw upstream's big red side glows behind open closures
  */
 
-const VERSION = "0.2.3";
+const VERSION = "0.3.0";
 
+// kind picks the highlight colour; label is what the status row under the car says.
 const OVERLAYS = {
   common: [
-    { entity: "front_trunk", glow: "top", svg: "trunk" },
-    { entity: "door_front_left", glow: "left", svg: "driver-door" },
-    { entity: "door_front_right", glow: "right", svg: "passenger-door" },
-    { entity: "door_rear_left", glow: "left", svg: "rear-left-door" },
-    { entity: "door_rear_right", glow: "right", svg: "rear-right-door" },
-    { entity: "window_front_left", glow: "left", svg: "driver-window" },
-    { entity: "window_front_right", glow: "right", svg: "passenger-window" },
-    { entity: "window_rear_left", glow: "left", svg: "rear-left-window" },
-    { entity: "window_rear_right", glow: "right", svg: "rear-right-window" },
-    { entity: ["charger_connection", "charging_status"], svg: "charger-door" },
-    { entity: "locked_state", glow: "all", svg: "lock", lock: true },
+    { entity: "front_trunk", glow: "top", svg: "trunk", kind: "closure", label: "Frunk" },
+    { entity: "door_front_left", glow: "left", svg: "driver-door", kind: "door", label: "Front left door" },
+    { entity: "door_front_right", glow: "right", svg: "passenger-door", kind: "door", label: "Front right door" },
+    { entity: "door_rear_left", glow: "left", svg: "rear-left-door", kind: "door", label: "Rear left door" },
+    { entity: "door_rear_right", glow: "right", svg: "rear-right-door", kind: "door", label: "Rear right door" },
+    { entity: "window_front_left", glow: "left", svg: "driver-window", kind: "window", label: "Front left window" },
+    { entity: "window_front_right", glow: "right", svg: "passenger-window", kind: "window", label: "Front right window" },
+    { entity: "window_rear_left", glow: "left", svg: "rear-left-window", kind: "window", label: "Rear left window" },
+    { entity: "window_rear_right", glow: "right", svg: "rear-right-window", kind: "window", label: "Rear right window" },
+    { entity: ["charging_status", "charger_connection"], svg: "charger-door", kind: "charge" },
+    { entity: "locked_state", glow: "all", svg: "lock", kind: "lock", lock: true },
   ],
-  r1s: [{ entity: "liftgate", glow: "bottom", svg: "liftgate" }],
+  r1s: [{ entity: "liftgate", glow: "bottom", svg: "liftgate", kind: "closure", label: "Liftgate" }],
   r1t: [
-    { entity: "gear_tunnel_left", glow: "left", svg: "tunnel" },
-    { entity: "gear_tunnel_right", glow: "right", svg: "tunnel" },
-    { entity: "tailgate", glow: "bottom", svg: "tailgate" },
-    { entity: "tonneau", glow: "bottom", svg: "bed" },
+    { entity: "gear_tunnel_left", glow: "left", svg: "tunnel", kind: "closure", label: "Left gear tunnel" },
+    { entity: "gear_tunnel_right", glow: "right", svg: "tunnel", kind: "closure", label: "Right gear tunnel" },
+    { entity: "tailgate", glow: "bottom", svg: "tailgate", kind: "closure", label: "Tailgate" },
+    { entity: "tonneau", glow: "bottom", svg: "bed", kind: "closure", label: "Tonneau" },
   ],
+};
+
+const KIND_COLOR = {
+  closure: "var(--error-color)",
+  door: "var(--error-color)",
+  window: "var(--warning-color)",
+  charge: "var(--info-color, #039be5)",
+  lock: "var(--error-color)",
 };
 
 // The upstream outline SVGs are drawn ~4.5% smaller than the Rivian overhead render; scale
@@ -47,10 +57,20 @@ const STYLE = `
   .stage { position: relative; cursor: pointer; }
   .car { display: block; width: 40%; margin: 4% auto 0; aspect-ratio: 516 / 1173; object-fit: contain; }
   .overlay {
-    position: absolute; left: 0; top: 50%; width: 100%;
+    position: absolute; left: 0; top: 50%; width: 100%; aspect-ratio: 1;
     transform: translateY(-50%) scale(var(--overlay-scale, 1));
     transform-origin: 50% 49.25%; pointer-events: none;
   }
+  /* Outline SVGs are used as masks so they take the theme colour for their kind. */
+  .part { -webkit-mask: var(--src) center / contain no-repeat; mask: var(--src) center / contain no-repeat; }
+  .status { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 0 16px 16px; }
+  .status:empty { display: none; }
+  .chip {
+    display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 16px;
+    font-size: 13px; cursor: pointer; color: var(--primary-text-color);
+    background: color-mix(in srgb, var(--chip-color) 18%, transparent);
+  }
+  .chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--chip-color); }
   .slot {
     position: absolute; transform: translate(-50%, -50%);
     display: flex; flex-direction: column; align-items: center;
@@ -130,6 +150,7 @@ class RivianCard extends HTMLElement {
           <div class="slot" id="odometer"><ha-state-icon></ha-state-icon><span class="label"></span></div>
           <div class="slot" id="wiper" hidden><ha-state-icon></ha-state-icon><span class="sub">Washer fluid</span></div>
         </div>
+        <div class="status"></div>
       </ha-card>`;
     this._el = (sel) => root.querySelector(sel);
     const clicks = {
@@ -146,6 +167,10 @@ class RivianCard extends HTMLElement {
         this._moreInfo(entity());
       });
     }
+    this._el(".status").addEventListener("click", (ev) => {
+      const entity = ev.target.closest(".chip")?.dataset.entity;
+      if (entity) this._moreInfo(entity);
+    });
     this._overlayKey = null;
     this._built = true;
   }
@@ -202,23 +227,39 @@ class RivianCard extends HTMLElement {
     const picture = this._carPicture() || `${assets}/${model}/overhead/dark/${model}-launch-green.png`;
     if (car.getAttribute("src") !== picture) car.setAttribute("src", picture);
 
-    // Glows are shared between closures on the same side; draw each once, under the outlines.
-    const glows = new Set();
-    const outlines = [];
+    const open = [];
     for (const o of [...OVERLAYS.common, ...OVERLAYS[model]]) {
-      const keys = Array.isArray(o.entity) ? o.entity : [o.entity];
       if (o.lock && this._config.lock_overlay === false) continue;
-      if (!keys.some((k) => this._on(k))) continue;
-      if (o.glow) glows.add(`${model}-${o.glow}.png`);
-      outlines.push(`${model}-${o.svg}.svg`);
+      const keys = Array.isArray(o.entity) ? o.entity : [o.entity];
+      const on = keys.find((k) => this._on(k));
+      if (on) open.push({ ...o, on: this._id("binary_sensor", on) });
     }
-    const files = [...glows, ...outlines];
-    const key = files.join(",");
+
+    // Upstream's side glows are shared between closures on the same side; draw each once, under the outlines.
+    const glows = this._config.glows ? [...new Set(open.filter((o) => o.glow).map((o) => `${model}-${o.glow}.png`))] : [];
+    const parts = open.map((o) => ({
+      src: `${assets}/${model}/${model}-${o.svg}.svg`,
+      color: o.kind === "charge" && !this._on("charging_status") ? "var(--secondary-text-color)" : KIND_COLOR[o.kind],
+    }));
+    const key = JSON.stringify([glows, parts]);
     if (key !== this._overlayKey) {
       this._overlayKey = key;
-      this._el(".overlays").innerHTML = files
-        .map((f) => `<img class="overlay" alt="" src="${assets}/${model}/${f}">`)
-        .join("");
+      this._el(".overlays").innerHTML = [
+        ...glows.map((f) => `<img class="overlay" alt="" src="${assets}/${model}/${f}">`),
+        ...parts.map((p) => `<div class="overlay part" style="--src: url('${p.src}'); background: ${p.color}"></div>`),
+      ].join("");
+
+      // One chip per open closure, with doors and windows summarised when more than one is open.
+      const chips = [];
+      for (const kind of ["closure", "door", "window"]) {
+        const items = open.filter((o) => o.kind === kind);
+        const group = kind !== "closure" && items.length > 1;
+        for (const o of group ? [items[0]] : items) {
+          const text = group ? `${items.length === 4 ? "All" : items.length} ${kind}s open` : `${o.label} open`;
+          chips.push(`<div class="chip" style="--chip-color: ${KIND_COLOR[kind]}" data-entity="${o.on}">${text}</div>`);
+        }
+      }
+      this._el(".status").innerHTML = chips.join("");
     }
 
     const lock = this._state(this._id("binary_sensor", "locked_state"));

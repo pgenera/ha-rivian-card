@@ -16,7 +16,8 @@
 > image: image.sasquatch_overhead  # integration image entity; _dark/_light is picked from the theme
 > # tracker: device_tracker.r1s_location
 > # assets: /local/rivian-card/images
-> # lock_overlay: false           # no red glow/outline while unlocked
+> # lock_overlay: false           # no red outline while unlocked
+> # glows: true                   # upstream's red side glows behind open closures
 > # overlay_scale: 1.045          # fit the outlines to the car image (default per model)
 > ```
 >
