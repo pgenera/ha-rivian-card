@@ -10,9 +10,10 @@
  *   model: r1s                        # r1s | r1t: picks the overlay set
  *   image: image.sasquatch_overhead   # _dark/_light suffix chosen from the theme; a full entity id or URL also works
  *   assets: /local/rivian-card/images # where the overlay images are served from
+ *   lock_overlay: false               # hide the red unlocked glow/outline (the lock status still shows)
  */
 
-const VERSION = "0.2.2";
+const VERSION = "0.2.3";
 
 const OVERLAYS = {
   common: [
@@ -26,7 +27,7 @@ const OVERLAYS = {
     { entity: "window_rear_left", glow: "left", svg: "rear-left-window" },
     { entity: "window_rear_right", glow: "right", svg: "rear-right-window" },
     { entity: ["charger_connection", "charging_status"], svg: "charger-door" },
-    { entity: "locked_state", glow: "all", svg: "lock" },
+    { entity: "locked_state", glow: "all", svg: "lock", lock: true },
   ],
   r1s: [{ entity: "liftgate", glow: "bottom", svg: "liftgate" }],
   r1t: [
@@ -206,6 +207,7 @@ class RivianCard extends HTMLElement {
     const outlines = [];
     for (const o of [...OVERLAYS.common, ...OVERLAYS[model]]) {
       const keys = Array.isArray(o.entity) ? o.entity : [o.entity];
+      if (o.lock && this._config.lock_overlay === false) continue;
       if (!keys.some((k) => this._on(k))) continue;
       if (o.glow) glows.add(`${model}-${o.glow}.png`);
       outlines.push(`${model}-${o.svg}.svg`);
