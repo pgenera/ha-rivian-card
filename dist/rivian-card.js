@@ -12,7 +12,7 @@
  *   assets: /local/rivian-card/images # where the overlay images are served from
  */
 
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 
 const OVERLAYS = {
   common: [
@@ -37,13 +37,18 @@ const OVERLAYS = {
   ],
 };
 
+// The upstream outline SVGs are drawn ~4.5% smaller than the Rivian overhead render; scale
+// them (about the car's centre) so the outlines sit on the body edge instead of inside it.
+const OVERLAY_FIT = { r1s: 1.045, r1t: 1 };
+
 const STYLE = `
   ha-card { overflow: hidden; }
   .stage { position: relative; cursor: pointer; }
   .car { display: block; width: 40%; margin: 4% auto 0; aspect-ratio: 516 / 1173; object-fit: contain; }
   .overlay {
     position: absolute; left: 0; top: 50%; width: 100%;
-    transform: translateY(-50%); pointer-events: none;
+    transform: translateY(-50%) scale(var(--overlay-scale, 1));
+    transform-origin: 50% 49.25%; pointer-events: none;
   }
   .slot {
     position: absolute; transform: translate(-50%, -50%);
@@ -185,6 +190,7 @@ class RivianCard extends HTMLElement {
     if (!this._built) this._build();
     const assets = this._config.assets;
     const model = this._config.model;
+    this._el(".stage").style.setProperty("--overlay-scale", this._config.overlay_scale ?? OVERLAY_FIT[model]);
 
     const car = this._el(".car");
     const picture = this._carPicture() || `${assets}/${model}/overhead/dark/${model}-launch-green.png`;
