@@ -12,7 +12,7 @@
  *   assets: /local/rivian-card/images # where the overlay images are served from
  */
 
-const VERSION = "0.2.1";
+const VERSION = "0.2.2";
 
 const OVERLAYS = {
   common: [
@@ -171,8 +171,13 @@ class RivianCard extends HTMLElement {
   _format(stateObj, round) {
     if (!stateObj) return "";
     const num = Number(stateObj.state);
-    const value = round && Number.isFinite(num) ? String(Math.round(num)) : undefined;
-    return this._hass.formatEntityState ? this._hass.formatEntityState(stateObj, value) : stateObj.state;
+    // formatEntityState re-applies the entity's display precision, so whole numbers are formatted here.
+    if (round && Number.isFinite(num)) {
+      const unit = stateObj.attributes.unit_of_measurement || "";
+      const value = Math.round(num).toLocaleString(this._hass.locale?.language);
+      return unit === "%" ? `${value}%` : `${value} ${unit}`.trim();
+    }
+    return this._hass.formatEntityState ? this._hass.formatEntityState(stateObj) : stateObj.state;
   }
 
   _slot(sel, stateObj, label, icon) {
